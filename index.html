@@ -120,6 +120,11 @@
         padding-bottom: 0.5rem;
       }
 
+      .terminal-history:focus {
+        outline: none;
+        box-shadow: 0 0 0 8px rgba(0, 0, 0, 0.55);
+      }
+
       .prompt-line {
         font-size: 0.95rem;
         display: flex;
@@ -188,21 +193,27 @@
           background: rgba(255, 106, 204, 0.2);
         }
 
-        @media (max-width: 640px) {
-          .mobile-toolbar {
-            display: flex;
-            overflow-x: auto;
-            scroll-snap-type: x mandatory;
-            -webkit-overflow-scrolling: touch;
-          }
-          .terminal-input {
-            padding-bottom: 1.8rem;
-            transition: transform 0.25s ease;
-          }
-          .terminal-input.focused {
-            transform: translateY(-90px);
-          }
+      @media (max-width: 640px) {
+        .mobile-toolbar {
+          display: flex;
+          overflow-x: auto;
+          scroll-snap-type: x mandatory;
+          -webkit-overflow-scrolling: touch;
         }
+        .mobile-toolbar::-webkit-scrollbar {
+          display: none;
+        }
+        .terminal-input {
+          padding-bottom: 1.8rem;
+          transition: transform 0.25s ease;
+        }
+        .terminal-input.focused {
+          transform: translateY(-90px);
+        }
+        .terminal-canvas {
+          padding: 1rem 0;
+        }
+      }
 
       .terminal-input span {
         color: var(--gum-pink);
@@ -246,9 +257,45 @@
       .event-card .event-desc {
         font-size: 0.82rem;
         color: rgba(255, 255, 255, 0.65);
-        text-overflow: ellipsis;
-        overflow: hidden;
-        white-space: nowrap;
+        display: none;
+        white-space: normal;
+        word-break: break-word;
+        margin-top: 0.5rem;
+      }
+
+      .event-card.expanded .event-desc {
+        display: block;
+      }
+
+      .calendar-tint-0 {
+        background: linear-gradient(145deg, rgba(102, 153, 255, 0.35), rgba(5, 5, 5, 0.95));
+      }
+      .calendar-tint-1 {
+        background: linear-gradient(145deg, rgba(18, 18, 18, 0.55), rgba(5, 5, 5, 0.95));
+      }
+      .calendar-tint-2 {
+        background: linear-gradient(145deg, rgba(0, 180, 125, 0.35), rgba(5, 5, 5, 0.95));
+      }
+      .calendar-tint-3 {
+        background: linear-gradient(145deg, rgba(187, 33, 162, 0.35), rgba(5, 5, 5, 0.95));
+      }
+      .calendar-tint-4 {
+        background: linear-gradient(145deg, rgba(164, 13, 150, 0.35), rgba(5, 5, 5, 0.95));
+      }
+      .calendar-tint-5 {
+        background: linear-gradient(145deg, rgba(141, 4, 138, 0.35), rgba(5, 5, 5, 0.95));
+      }
+      .calendar-tint-6 {
+        background: linear-gradient(145deg, rgba(115, 0, 120, 0.35), rgba(5, 5, 5, 0.95));
+      }
+      .calendar-tint-7 {
+        background: linear-gradient(145deg, rgba(99, 0, 110, 0.35), rgba(5, 5, 5, 0.95));
+      }
+      .calendar-tint-8 {
+        background: linear-gradient(145deg, rgba(80, 0, 95, 0.35), rgba(5, 5, 5, 0.95));
+      }
+      .calendar-tint-9 {
+        background: linear-gradient(145deg, rgba(60, 0, 75, 0.35), rgba(5, 5, 5, 0.95));
       }
 
       .event-card.selected {
@@ -278,6 +325,43 @@
         background: rgba(255, 255, 255, 0.08);
         font-size: 0.8rem;
         border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+
+      .calendar-picker {
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        padding: 0.7rem;
+        background: rgba(255, 255, 255, 0.02);
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .calendar-picker-label {
+        font-size: 0.85rem;
+        color: rgba(255, 255, 255, 0.8);
+      }
+
+      .calendar-pill-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+      }
+
+      .calendar-pill {
+        border: 0;
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--gum-white);
+        padding: 0.4rem 0.9rem;
+        border-radius: 999px;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 0.85rem;
+        transition: background 0.2s ease;
+      }
+
+      .calendar-pill:hover {
+        background: rgba(255, 106, 204, 0.2);
       }
 
       @media (max-width: 860px) {
@@ -329,8 +413,8 @@
         </form>
         <div class="mobile-toolbar" id="mobile-toolbar">
           <button type="button" data-shortcut="ls">ls</button>
-          <button type="button" data-shortcut="7">7</button>
-          <button type="button" data-shortcut="30">30</button>
+          <button type="button" data-shortcut="w">w</button>
+          <button type="button" data-shortcut="m">m</button>
           <button type="button" data-shortcut="j">j</button>
           <button type="button" data-shortcut="k">k</button>
           <button type="button" data-shortcut="ESC">ESC</button>
@@ -360,8 +444,8 @@
       const commands = {
         auth: handleAuth,
         ls: () => fetchEventsRange("Today", rangeToday()),
-        "7": () => fetchEventsRange("Next 7 Days", rangeNextDays(7)),
-        "30": () => fetchEventsRange("This Month", rangeMonth(0)),
+        w: () => fetchEventsRange("Next 7 Days", rangeNextDays(7)),
+        m: () => fetchEventsRange("This Month", rangeMonth(0)),
         "+1": () => fetchEventsRange("Next Month", rangeMonth(1)),
         "+2": () => fetchEventsRange("Following Month", rangeMonth(2)),
         cals: listCalendars,
@@ -373,6 +457,10 @@
       let awaitingClientSecret = false;
       const commandHistory = [];
       let historyIndex = -1;
+      let pendingEvent = null;
+      let calendarSelectorEl = null;
+      const calendarTintMap = new Map();
+      const tintCount = 10;
 
       updatePrompt();
       handleOAuthCallback();
@@ -444,30 +532,23 @@
 
       function dispatchCommand(raw) {
         addHistoryPrompt(raw);
-        const [name, arg] = raw.split(" ", 2);
-        if (name === "amibusy") {
-          if (!arg || !/^[0-9]{6}$/.test(arg)) {
-            addHistoryLine("error", "Usage: amibusy YYMMDD (e.g., amibusy 240302)");
-            return;
-          }
-          const date = parseYYMMDD(arg);
-          if (!date) {
-            addHistoryLine("error", "Invalid date; make sure YYMMDD is valid.");
-            return;
-          }
-          fetchEventsRange(
-            `Am I Busy ${formatDate(date)}`,
-            rangeSingleDay(date)
-          );
+        if (raw.startsWith("a ")) {
+          cancelAddEvent();
+          handleAddCommand(raw.slice(2).trim());
           return;
         }
-
+        cancelAddEvent();
+        const [name] = raw.split(" ", 1);
         const command = commands[name];
-        if (!command) {
-          addHistoryLine("error", `Unknown command: ${name}`);
+        if (command) {
+          command();
           return;
         }
-        command();
+        if (/^[0-9]+$/.test(raw)) {
+          handleDateLookup(raw);
+          return;
+        }
+        addHistoryLine("error", `Unknown command: ${name}`);
       }
 
       function handleClientIdInput(value) {
@@ -533,10 +614,16 @@
       let navIndex = -1;
       let gStreak = 0;
       let gTimer;
+      let activeCardIndex = -1;
 
       historyEl.tabIndex = 0;
       historyEl.setAttribute("aria-label", "Terminal history");
       historyEl.addEventListener("keydown", handleHistoryNav);
+      window.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          input.focus();
+        }
+      });
 
       function focusHistory() {
         const cards = getEventCards();
@@ -556,6 +643,13 @@
         if (event.key === "Escape") {
           event.preventDefault();
           input.focus();
+          return;
+        }
+        if (event.key === "Enter") {
+          event.preventDefault();
+          if (navIndex >= 0) {
+            toggleEventDescription(navIndex);
+          }
           return;
         }
         if (event.key === "Tab") {
@@ -612,6 +706,18 @@
         }
       }
 
+      function cancelAddEvent() {
+        pendingEvent = null;
+        clearCalendarPicker();
+      }
+
+      function clearCalendarPicker() {
+        if (calendarSelectorEl) {
+          calendarSelectorEl.remove();
+          calendarSelectorEl = null;
+        }
+      }
+
       function getEventCards() {
         return Array.from(historyEl.querySelectorAll(".event-card"));
       }
@@ -625,6 +731,23 @@
         } else {
           navIndex = -1;
         }
+      }
+
+      function toggleEventDescription(index) {
+        const cards = getEventCards();
+        if (!cards.length || index < 0 || index >= cards.length) {
+          return;
+        }
+        if (activeCardIndex >= 0 && activeCardIndex < cards.length) {
+          cards[activeCardIndex].classList.remove("expanded");
+          if (activeCardIndex === index) {
+            activeCardIndex = -1;
+            return;
+          }
+        }
+        cards[index].classList.add("expanded");
+        activeCardIndex = index;
+        cards[index].scrollIntoView({ block: "center", behavior: "smooth" });
       }
 
       function moveHistory(direction) {
@@ -676,7 +799,7 @@
       });
 
       function handleShortcut(action) {
-        if (action === "ls" || ["7", "30"].includes(action)) {
+        if (action === "ls" || ["w", "m"].includes(action)) {
           executeCommand(action);
           return;
         }
@@ -700,6 +823,18 @@
           jumpTop();
           return;
         }
+      }
+
+      function getCalendarTintClass(calendarId) {
+        if (!calendarId) {
+          return "";
+        }
+        if (!calendarTintMap.has(calendarId)) {
+          const nextIndex = calendarTintMap.size % tintCount;
+          calendarTintMap.set(calendarId, nextIndex);
+        }
+        const idx = calendarTintMap.get(calendarId);
+        return `calendar-tint-${idx}`;
       }
 
       function escapeHtml(value) {
@@ -945,9 +1080,10 @@
           "<strong>help</strong> – repeat this command list",
           "<strong>auth</strong> – prompt for your Client ID and optional secret, then run the PKCE flow",
           "<strong>status</strong> – display whether the shell is authenticated",
-          "<strong>ls</strong>/<strong>7</strong>/<strong>30</strong>/<strong>+1</strong>/<strong>+2</strong> – query events across every calendar for the requested range",
-          "<strong>amibusy YYMMDD</strong> – inspect a single day",
+          "<strong>ls</strong>/<strong>w</strong>/<strong>m</strong>/<strong>+1</strong>/<strong>+2</strong> – query events across every calendar for the requested range",
+          "<strong>DD</strong>/<strong>MMDD</strong>/<strong>YYMMDD</strong>/<strong>YYYYMMDD</strong> – inspect an arbitrary day",
           "<strong>cals</strong> – list the calendars the token can read",
+          "<strong>a</strong> + date/time/duration + title – add a quick event (e.g., `a 271225 Christmas`, `a 07 14 1 Coffee`)",
           "<strong>clear</strong> – wipe the current console output",
           "Register a Google OAuth client that allows both http://localhost and https://cal-term.com as redirect URIs.",
           "Tip: prompt lines show the date/time you sent a command, so you can correlate events with the shell history."
@@ -958,6 +1094,7 @@
       function clearHistory() {
         historyEl.innerHTML = "";
         navIndex = -1;
+        activeCardIndex = -1;
         addHistoryLine("system", "Screen cleared. Type <span class='tag'>help</span> for available commands.");
       }
 
@@ -1060,6 +1197,289 @@
         return `${String(date.getFullYear()).slice(-2)}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
       }
 
+      function handleDateLookup(raw) {
+        const candidate = parseFlexibleDate(raw);
+        if (!candidate) {
+          addHistoryLine("error", "Supply DD, MMDD, YYMMDD, or YYYYMMDD to inspect a day.");
+          return;
+        }
+        const label = `Am I busy ${candidate.toLocaleDateString(undefined, { month: "short", day: "2-digit", year: "numeric" })}`;
+        fetchEventsRange(label, rangeSingleDay(candidate));
+      }
+
+      async function handleAddCommand(payload) {
+        const tokens = payload.split(/\s+/).filter(Boolean);
+        if (!tokens.length) {
+          addHistoryLine("error", "Usage: a <date> [time] [duration] <title>");
+          return;
+        }
+        const dateToken = tokens[0];
+        const timeCandidate = tokens[1];
+        let timeToken = null;
+        let durationToken = null;
+        let idx = 1;
+        if (timeCandidate && /^[0-9]+$/.test(timeCandidate)) {
+          timeToken = timeCandidate;
+          idx += 1;
+        }
+        if (timeToken && tokens[idx] && /^[0-9]+(\.[0-9]+)?$/.test(tokens[idx])) {
+          durationToken = tokens[idx];
+          idx += 1;
+        }
+        const title = tokens.slice(idx).join(" ") || "Untitled event";
+        const date = parseFlexibleDate(dateToken);
+        if (!date) {
+          addHistoryLine("error", "Invalid date format; please use DD, MMDD, YYMMDD, or YYYYMMDD.");
+          return;
+        }
+        const timeParts = timeToken ? parseTimeToken(timeToken) : null;
+        if (timeToken && !timeParts) {
+          addHistoryLine("error", "Time must be between 0000 and 2359.");
+          return;
+        }
+        const durationHours = timeParts
+          ? durationToken
+            ? parseFloat(durationToken)
+            : 1
+          : 0;
+        if (timeParts && (!durationHours || durationHours <= 0)) {
+          addHistoryLine("error", "Duration must be a positive number of hours.");
+          return;
+        }
+        const label = `${title} on ${date.toLocaleDateString(undefined, {
+          month: "short",
+          day: "2-digit",
+          year: "numeric",
+        })}`;
+        pendingEvent = {
+          date,
+          time: timeParts,
+          durationHours,
+          title,
+          label,
+          allDay: !timeParts,
+        };
+        addHistoryLine("log", `Preparing to add ${pendingEvent.label}. Choose a calendar.`);
+        try {
+          const token = await ensureAccessToken();
+          const calendars = await fetchCalendarList(token);
+          if (!calendars.length) {
+            addHistoryLine("error", "No calendars available to add events.");
+            pendingEvent = null;
+            return;
+          }
+          renderCalendarPicker(calendars);
+        } catch (error) {
+          addHistoryLine("error", `Unable to prepare event: ${error.message}`);
+          pendingEvent = null;
+        }
+      }
+
+      function renderCalendarPicker(calendars) {
+        clearCalendarPicker();
+        if (!pendingEvent) {
+          return;
+        }
+        const container = document.createElement("div");
+        container.className = "calendar-picker";
+        const label = document.createElement("div");
+        label.className = "calendar-picker-label";
+        label.innerHTML = `Select a calendar for <strong>${escapeHtml(pendingEvent.title)}</strong> (${escapeHtml(
+          pendingEvent.label
+        )})`;
+        container.appendChild(label);
+        const row = document.createElement("div");
+        row.className = "calendar-pill-row";
+        calendars.forEach((calendar) => {
+          const pill = document.createElement("button");
+          pill.type = "button";
+          pill.className = "calendar-pill";
+          pill.textContent = calendar.summary || calendar.id;
+          pill.addEventListener("click", () => createCalendarEvent(calendar));
+          row.appendChild(pill);
+        });
+        container.appendChild(row);
+        historyEl.appendChild(container);
+        container.scrollIntoView({ behavior: "smooth" });
+        calendarSelectorEl = container;
+      }
+
+      async function createCalendarEvent(calendar) {
+        if (!pendingEvent) {
+          addHistoryLine("error", "No event is pending creation.");
+          return;
+        }
+        try {
+          const payload = buildEventPayload(pendingEvent);
+          const token = await ensureAccessToken();
+          const response = await fetch(
+            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendar.id)}/events`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(payload),
+            }
+          );
+          if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            const description = data.error?.message ? ` ${data.error.message}` : "";
+            throw new Error(`HTTP ${response.status}${description}`.trim());
+          }
+          addHistoryLine("system", `Event "${escapeHtml(pendingEvent.title)}" added to ${escapeHtml(
+            calendar.summary || calendar.id
+          )}.`);
+          pendingEvent = null;
+          clearCalendarPicker();
+        } catch (error) {
+          addHistoryLine("error", `Failed to add event: ${error.message}`);
+        }
+      }
+
+      function buildEventPayload(event) {
+        const payload = {
+          summary: event.title,
+        };
+        if (event.allDay) {
+          const startDate = formatIsoDay(event.date);
+          const endDate = new Date(event.date);
+          endDate.setDate(endDate.getDate() + 1);
+          payload.start = { date: startDate };
+          payload.end = { date: formatIsoDay(endDate) };
+        } else {
+          const start = new Date(event.date);
+          start.setHours(event.time.hours);
+          start.setMinutes(event.time.minutes);
+          start.setSeconds(0);
+          start.setMilliseconds(0);
+          const end = new Date(start);
+          end.setMinutes(end.getMinutes() + event.durationHours * 60);
+          payload.start = { dateTime: start.toISOString() };
+          payload.end = { dateTime: end.toISOString() };
+        }
+        return payload;
+      }
+
+      function formatIsoDay(date) {
+        return date.toISOString().slice(0, 10);
+      }
+
+      function parseFlexibleDate(token) {
+        const digits = token.trim();
+        if (!digits || !/^[0-9]+$/.test(digits)) {
+          return null;
+        }
+        const now = new Date();
+        let year = now.getFullYear();
+        let month = now.getMonth() + 1;
+        let day = null;
+        if (digits.length <= 2) {
+          day = parseInt(digits, 10);
+        } else if (digits.length === 4) {
+          month = parseInt(digits.slice(0, 2), 10);
+          day = parseInt(digits.slice(2), 10);
+        } else if (digits.length === 6) {
+          year = 2000 + parseInt(digits.slice(0, 2), 10);
+          month = parseInt(digits.slice(2, 4), 10);
+          day = parseInt(digits.slice(4), 10);
+        } else if (digits.length === 8) {
+          year = parseInt(digits.slice(0, 4), 10);
+          month = parseInt(digits.slice(4, 6), 10);
+          day = parseInt(digits.slice(6), 10);
+        } else {
+          return null;
+        }
+        if (!day || day < 1 || !month || month < 1 || month > 12) {
+          return null;
+        }
+        const candidate = new Date(year, month - 1, day);
+        if (
+          candidate.getFullYear() !== year ||
+          candidate.getMonth() !== month - 1 ||
+          candidate.getDate() !== day
+        ) {
+          return null;
+        }
+        return candidate;
+      }
+
+      function parseTimeToken(token) {
+        if (!token || !/^[0-9]+$/.test(token)) {
+          return null;
+        }
+        const digits = token;
+        let hours;
+        let minutes;
+        if (digits.length <= 2) {
+          hours = parseInt(digits, 10);
+          minutes = 0;
+        } else {
+          hours = parseInt(digits.slice(0, -2), 10);
+          minutes = parseInt(digits.slice(-2), 10);
+        }
+        if (
+          Number.isNaN(hours) ||
+          Number.isNaN(minutes) ||
+          hours < 0 ||
+          hours > 23 ||
+          minutes < 0 ||
+          minutes > 59
+        ) {
+          return null;
+        }
+        return { hours, minutes };
+      }
+
+      function handleDateLookup(raw) {
+        const digits = raw.trim();
+        const now = new Date();
+        let year = now.getFullYear();
+        let month = now.getMonth() + 1;
+        let day;
+        if (digits.length <= 2) {
+          day = parseInt(digits, 10);
+        } else if (digits.length === 4) {
+          month = parseInt(digits.slice(0, 2), 10);
+          day = parseInt(digits.slice(2), 10);
+        } else if (digits.length === 6) {
+          year = 2000 + parseInt(digits.slice(0, 2), 10);
+          month = parseInt(digits.slice(2, 4), 10);
+          day = parseInt(digits.slice(4), 10);
+        } else if (digits.length === 8) {
+          year = parseInt(digits.slice(0, 4), 10);
+          month = parseInt(digits.slice(4, 6), 10);
+          day = parseInt(digits.slice(6), 10);
+        } else {
+          addHistoryLine("error", "Enter DD, MMDD, YYMMDD, or YYYYMMDD to view a specific day.");
+          return;
+        }
+        if (!Number.isInteger(day) || day < 1) {
+          addHistoryLine("error", "Day must be a positive number.");
+          return;
+        }
+        if (!Number.isInteger(month) || month < 1 || month > 12) {
+          addHistoryLine("error", "Month must be between 1 and 12.");
+          return;
+        }
+        const candidate = new Date(year, month - 1, day);
+        if (
+          candidate.getFullYear() !== year ||
+          candidate.getMonth() !== month - 1 ||
+          candidate.getDate() !== day
+        ) {
+          addHistoryLine("error", "That date does not exist. Please double-check your entry.");
+          return;
+        }
+        const label = `Events for ${candidate.toLocaleDateString(undefined, {
+          month: "short",
+          day: "2-digit",
+          year: "numeric",
+        })}`;
+        fetchEventsRange(label, rangeSingleDay(candidate));
+      }
+
       async function fetchEventsRange(label, { start, end }) {
         addHistoryLine("log", `Querying ${label} across all calendars…`);
         try {
@@ -1095,6 +1515,7 @@
                   events.push({
                     ...event,
                     calendarName: calendar.summary || calendar.id,
+                    calendarId: calendar.id,
                   });
                 });
               } catch (error) {
@@ -1163,9 +1584,19 @@
           addHistoryLine("log", `${label}: No events found.`);
           return;
         }
+        activeCardIndex = -1;
         events.forEach((event) => {
           const card = document.createElement("div");
           card.className = "event-card";
+          const tintClass = getCalendarTintClass(event.calendarId || event.calendarName);
+          if (tintClass) {
+            card.classList.add(tintClass);
+          }
+          card.addEventListener("click", () => {
+            const cards = getEventCards();
+            const index = cards.indexOf(card);
+            toggleEventDescription(index);
+          });
           const start = event.start?.dateTime || event.start?.date;
           const end = event.end?.dateTime || event.end?.date;
           const calendarTag = event.calendarName
