@@ -199,6 +199,8 @@
           overflow-x: auto;
           scroll-snap-type: x mandatory;
           -webkit-overflow-scrolling: touch;
+          justify-content: flex-start;
+          padding-left: 0.25rem;
         }
         .mobile-toolbar::-webkit-scrollbar {
           display: none;
@@ -241,6 +243,16 @@
         display: flex;
         flex-direction: column;
         gap: 0.25rem;
+      }
+
+      .day-divider {
+        font-size: 0.95rem;
+        letter-spacing: 0.15rem;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.55);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        padding-bottom: 0.2rem;
+        margin-top: 0.9rem;
       }
 
       .event-card .event-title {
@@ -420,6 +432,8 @@
           <button type="button" data-shortcut="ESC">ESC</button>
           <button type="button" data-shortcut="G">G</button>
           <button type="button" data-shortcut="gg">gg</button>
+          <button type="button" data-shortcut="e">e</button>
+          <button type="button" data-shortcut="a">a</button>
         </div>
       </div>
     </div>
@@ -443,9 +457,18 @@
 
       const commands = {
         auth: handleAuth,
-        ls: () => fetchEventsRange("Today", rangeToday()),
-        w: () => fetchEventsRange("Next 7 Days", rangeNextDays(7)),
-        m: () => fetchEventsRange("This Month", rangeMonth(0)),
+        ls: () => {
+          focusHistoryAfterRender = true;
+          return fetchEventsRange("Today", rangeToday());
+        },
+        w: () => {
+          focusHistoryAfterRender = true;
+          return fetchEventsRange("Next 7 Days", rangeNextDays(7));
+        },
+        m: () => {
+          focusHistoryAfterRender = true;
+          return fetchEventsRange("This Month", rangeMonth(0));
+        },
         "+1": () => fetchEventsRange("Next Month", rangeMonth(1)),
         "+2": () => fetchEventsRange("Following Month", rangeMonth(2)),
         cals: listCalendars,
@@ -459,6 +482,9 @@
       let historyIndex = -1;
       let pendingEvent = null;
       let calendarSelectorEl = null;
+      let lastRenderedEvents = [];
+      let selectedEvent = null;
+      let focusHistoryAfterRender = false;
       const calendarTintMap = new Map();
       const tintCount = 10;
 
@@ -473,6 +499,9 @@
       ensureFocus();
       window.addEventListener("load", ensureFocus);
       window.addEventListener("resize", updatePrompt);
+      setInterval(() => {
+        updatePrompt();
+      }, 1000);
 
       form.addEventListener("submit", (event) => {
         event.preventDefault();
@@ -535,6 +564,11 @@
         if (raw.startsWith("a ")) {
           cancelAddEvent();
           handleAddCommand(raw.slice(2).trim());
+          return;
+        }
+        if (raw.startsWith("e ")) {
+          cancelAddEvent();
+          handleEditCommand(raw.slice(2).trim());
           return;
         }
         cancelAddEvent();
@@ -640,6 +674,11 @@
         if (!cards.length) {
           return;
         }
+        if (event.key === "e" && selectedEvent) {
+          event.preventDefault();
+          startEditShortcut();
+          return;
+        }
         if (event.key === "Escape") {
           event.preventDefault();
           input.focus();
@@ -742,11 +781,13 @@
           cards[activeCardIndex].classList.remove("expanded");
           if (activeCardIndex === index) {
             activeCardIndex = -1;
+            selectedEvent = null;
             return;
           }
         }
         cards[index].classList.add("expanded");
         activeCardIndex = index;
+        selectedEvent = lastRenderedEvents[index] || null;
         cards[index].scrollIntoView({ block: "center", behavior: "smooth" });
       }
 
@@ -811,6 +852,14 @@
           moveHistory("up");
           return;
         }
+        if (action === "e") {
+          startEditShortcut();
+          return;
+        }
+        if (action === "a") {
+          startAddShortcut();
+          return;
+        }
         if (action === "ESC") {
           input.focus();
           return;
@@ -823,6 +872,19 @@
           jumpTop();
           return;
         }
+      }
+
+      function startEditShortcut() {
+        if (!selectedEvent) {
+          return;
+        }
+        input.value = "e ";
+        input.focus();
+      }
+
+      function startAddShortcut() {
+        input.value = "a ";
+        input.focus();
       }
 
       function getCalendarTintClass(calendarId) {
@@ -843,7 +905,7 @@
         return div.innerHTML;
       }
 
-      function updatePrompt() {
+      function formatPromptTime() {
         const now = new Date();
         const isMobile = window.innerWidth <= 640;
         if (isMobile) {
@@ -851,10 +913,9 @@
           const month = now
             .toLocaleString(undefined, { month: "short" })
             .toUpperCase();
-          promptLabel.textContent = `${day}-${month}`;
-          return;
+          return `${day}-${month}`;
         }
-        const formatted = now.toLocaleString(undefined, {
+        return now.toLocaleString(undefined, {
           year: "numeric",
           month: "2-digit",
           day: "2-digit",
@@ -862,7 +923,10 @@
           minute: "2-digit",
           second: "2-digit",
         });
-        promptLabel.textContent = formatted;
+      }
+
+      function updatePrompt() {
+        promptLabel.textContent = formatPromptTime();
       }
 
       function handleAuth() {
@@ -1083,6 +1147,7 @@
           "<strong>ls</strong>/<strong>w</strong>/<strong>m</strong>/<strong>+1</strong>/<strong>+2</strong> – query events across every calendar for the requested range",
           "<strong>DD</strong>/<strong>MMDD</strong>/<strong>YYMMDD</strong>/<strong>YYYYMMDD</strong> – inspect an arbitrary day",
           "<strong>cals</strong> – list the calendars the token can read",
+          "<strong>e</strong> + date/time/duration/title – edit the highlighted event with the new values",
           "<strong>a</strong> + date/time/duration + title – add a quick event (e.g., `a 271225 Christmas`, `a 07 14 1 Coffee`)",
           "<strong>clear</strong> – wipe the current console output",
           "Register a Google OAuth client that allows both http://localhost and https://cal-term.com as redirect URIs.",
@@ -1366,6 +1431,136 @@
         return date.toISOString().slice(0, 10);
       }
 
+      function handleEditCommand(payload) {
+        if (!selectedEvent || !selectedEvent.id) {
+          addHistoryLine("error", "Select an event (click or Enter) before editing.");
+          return;
+        }
+        const tokens = payload.split(/\s+/).filter(Boolean);
+        if (!tokens.length) {
+          addHistoryLine("error", "Usage: e <date?> <time?> <duration?> <title?>");
+          return;
+        }
+        let idx = 0;
+        let dateToken = null;
+        let timeToken = null;
+        let durationToken = null;
+        const isDateCandidate = (token) => token === "-" || /^[0-9]{1,8}$/.test(token);
+        const isTimeCandidate = (token) => token === "-" || /^[0-9]{1,4}$/.test(token);
+        const isDurationCandidate = (token) => /^[0-9]+(\.[0-9]+)?$/.test(token);
+        if (isDateCandidate(tokens[0])) {
+          dateToken = tokens[0];
+          idx += 1;
+          if (tokens[idx] && isTimeCandidate(tokens[idx])) {
+            timeToken = tokens[idx];
+            idx += 1;
+          }
+          if (tokens[idx] && isDurationCandidate(tokens[idx])) {
+            durationToken = tokens[idx];
+            idx += 1;
+          }
+        }
+        const title = tokens.slice(idx).join(" ").trim();
+        const dateValue = dateToken && dateToken !== "-" ? parseFlexibleDate(dateToken) : null;
+        const timeValue = timeToken && timeToken !== "-" ? parseTimeToken(timeToken) : null;
+        const durationValue = durationToken && durationToken !== "-" ? parseFloat(durationToken) : null;
+        const titleValue = title.length ? title : null;
+        performEventEdit({ date: dateValue, time: timeValue, duration: durationValue, title: titleValue });
+      }
+
+      function getEventDateTime(event, key) {
+        if (!event || !event[key]) {
+          return null;
+        }
+        const value = event[key];
+        if (value.dateTime) {
+          return new Date(value.dateTime);
+        }
+        if (value.date) {
+          return new Date(`${value.date}T00:00:00`);
+        }
+        return null;
+      }
+
+      async function performEventEdit(updates) {
+        if (!selectedEvent || !selectedEvent.id) {
+          return;
+        }
+        const tokenPromise = ensureAccessToken();
+        const start = getEventDateTime(selectedEvent, "start");
+        const end = getEventDateTime(selectedEvent, "end");
+        if (!start || !end) {
+          addHistoryLine("error", "Cannot determine the selected event's time.");
+          return;
+        }
+        const originalDuration = end.getTime() - start.getTime();
+        const isAllDay = !!selectedEvent.start?.date && !selectedEvent.start?.dateTime;
+        let newStart = new Date(start.getTime());
+        if (updates.date) {
+          newStart.setFullYear(updates.date.getFullYear(), updates.date.getMonth(), updates.date.getDate());
+        }
+        let targetAllDay = isAllDay && !updates.time;
+        if (updates.time) {
+          newStart.setHours(updates.time.hours, updates.time.minutes, 0, 0);
+          targetAllDay = false;
+        }
+        let durationMs = originalDuration;
+        if (updates.duration) {
+          durationMs = updates.duration * 60 * 60 * 1000;
+          targetAllDay = false;
+        }
+        if (durationMs <= 0) {
+          durationMs = 60 * 60 * 1000;
+        }
+        const newEnd = targetAllDay
+          ? (() => {
+              const dayEnd = new Date(newStart.getTime());
+              dayEnd.setDate(dayEnd.getDate() + 1);
+              return dayEnd;
+            })()
+          : new Date(newStart.getTime() + durationMs);
+        const payload = { summary: updates.title || selectedEvent.summary };
+        if (targetAllDay) {
+          payload.start = { date: formatIsoDay(newStart) };
+          payload.end = { date: formatIsoDay(newEnd) };
+        } else {
+          payload.start = { dateTime: newStart.toISOString() };
+          payload.end = { dateTime: newEnd.toISOString() };
+        }
+        try {
+          const token = await tokenPromise;
+          const calendarId = selectedEvent.calendarId || "primary";
+          const response = await fetch(
+            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(
+              calendarId
+            )}/events/${encodeURIComponent(selectedEvent.id)}`,
+            {
+              method: "PATCH",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(payload),
+            }
+          );
+          if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            const description = data.error?.message ? ` ${data.error.message}` : "";
+            throw new Error(`HTTP ${response.status}${description}`.trim());
+          }
+          addHistoryLine(
+            "system",
+            `Event "${escapeHtml(payload.summary)}" updated. Reloading day...`
+          );
+          fetchEventsRange(
+            `Updated ${newStart.toLocaleDateString(undefined, { month: "short", day: "2-digit", year: "numeric" })}`,
+            rangeSingleDay(newStart)
+          );
+        } catch (error) {
+          addHistoryLine("error", `Failed to edit event: ${error.message}`);
+        }
+      }
+
       function parseFlexibleDate(token) {
         const digits = token.trim();
         if (!digits || !/^[0-9]+$/.test(digits)) {
@@ -1430,54 +1625,6 @@
           return null;
         }
         return { hours, minutes };
-      }
-
-      function handleDateLookup(raw) {
-        const digits = raw.trim();
-        const now = new Date();
-        let year = now.getFullYear();
-        let month = now.getMonth() + 1;
-        let day;
-        if (digits.length <= 2) {
-          day = parseInt(digits, 10);
-        } else if (digits.length === 4) {
-          month = parseInt(digits.slice(0, 2), 10);
-          day = parseInt(digits.slice(2), 10);
-        } else if (digits.length === 6) {
-          year = 2000 + parseInt(digits.slice(0, 2), 10);
-          month = parseInt(digits.slice(2, 4), 10);
-          day = parseInt(digits.slice(4), 10);
-        } else if (digits.length === 8) {
-          year = parseInt(digits.slice(0, 4), 10);
-          month = parseInt(digits.slice(4, 6), 10);
-          day = parseInt(digits.slice(6), 10);
-        } else {
-          addHistoryLine("error", "Enter DD, MMDD, YYMMDD, or YYYYMMDD to view a specific day.");
-          return;
-        }
-        if (!Number.isInteger(day) || day < 1) {
-          addHistoryLine("error", "Day must be a positive number.");
-          return;
-        }
-        if (!Number.isInteger(month) || month < 1 || month > 12) {
-          addHistoryLine("error", "Month must be between 1 and 12.");
-          return;
-        }
-        const candidate = new Date(year, month - 1, day);
-        if (
-          candidate.getFullYear() !== year ||
-          candidate.getMonth() !== month - 1 ||
-          candidate.getDate() !== day
-        ) {
-          addHistoryLine("error", "That date does not exist. Please double-check your entry.");
-          return;
-        }
-        const label = `Events for ${candidate.toLocaleDateString(undefined, {
-          month: "short",
-          day: "2-digit",
-          year: "numeric",
-        })}`;
-        fetchEventsRange(label, rangeSingleDay(candidate));
       }
 
       async function fetchEventsRange(label, { start, end }) {
@@ -1585,7 +1732,23 @@
           return;
         }
         activeCardIndex = -1;
-        events.forEach((event) => {
+        const sorted = [...events].sort((a, b) => new Date(getEventTime(a)).valueOf() - new Date(getEventTime(b)).valueOf());
+        lastRenderedEvents = sorted;
+        let currentDay = "";
+        sorted.forEach((event) => {
+          const startStamp = new Date(getEventTime(event));
+          const dayKey = startStamp.toDateString();
+          if (dayKey !== currentDay) {
+            currentDay = dayKey;
+            const divider = document.createElement("div");
+            divider.className = "day-divider";
+            divider.textContent = startStamp.toLocaleDateString(undefined, {
+              weekday: "long",
+              month: "short",
+              day: "2-digit",
+            });
+            historyEl.appendChild(divider);
+          }
           const card = document.createElement("div");
           card.className = "event-card";
           const tintClass = getCalendarTintClass(event.calendarId || event.calendarName);
@@ -1608,9 +1771,13 @@
             <div class="event-time">${formatEventTime(start, end)}</div>
             ${event.description ? `<div class="event-desc">${escapeHtml(event.description)}</div>` : ""}
           `;
-          historyEl.appendChild(card);
-        });
+        historyEl.appendChild(card);
+      });
         historyEl.scrollTop = historyEl.scrollHeight;
+        if (focusHistoryAfterRender) {
+          focusHistoryAfterRender = false;
+          focusHistory();
+        }
       }
 
       function formatEventTime(start, end) {
