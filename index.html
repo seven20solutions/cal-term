@@ -120,6 +120,7 @@
       .terminal-history {
         flex: 1;
         overflow-y: auto;
+        overflow-x: hidden;
         padding-right: 0.5rem;
         display: flex;
         flex-direction: column;
@@ -206,6 +207,9 @@
         font-size: 0.85rem;
         color: rgba(255, 255, 255, 0.7);
       }
+      .edit-hint {
+        display: none;
+      }
       .event-footer {
         position: sticky;
         bottom: 0;
@@ -214,6 +218,7 @@
         backdrop-filter: blur(12px);
         border-top: 1px solid rgba(255, 255, 255, 0.1);
         min-height: 2.5rem;
+        display: none;
       }
 
       @media (max-width: 640px) {
@@ -272,6 +277,10 @@
         display: flex;
         flex-direction: column;
         gap: 0.25rem;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+        min-width: 0;
       }
 
       .day-divider {
@@ -368,6 +377,56 @@
         border: 1px solid rgba(255, 255, 255, 0.2);
       }
 
+      .response-actions {
+        display: flex;
+        gap: 0.35rem;
+        flex-wrap: wrap;
+        margin-top: 0.35rem;
+        width: 100%;
+      }
+
+      .response-pill {
+        border: none;
+        border-radius: 999px;
+        padding: 0.25rem 0.75rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.1s ease, box-shadow 0.1s ease;
+        background: rgba(255, 255, 255, 0.05);
+        color: rgba(255, 255, 255, 0.9);
+        min-width: 0;
+      }
+
+      .response-pill:hover {
+        transform: translateY(-1px);
+      }
+
+      .response-pill--yes {
+        border: 1px solid rgba(0, 255, 166, 0.7);
+      }
+
+      .response-pill--no {
+        border: 1px solid rgba(255, 83, 108, 0.9);
+      }
+
+      .response-pill--active {
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
+        color: #ffffff;
+      }
+
+      .response-pill--yes.response-pill--active {
+        background: rgba(0, 255, 166, 0.5);
+        border-color: rgba(0, 255, 166, 0.9);
+        color: #ffffff;
+      }
+
+      .response-pill--no.response-pill--active {
+        background: rgba(255, 83, 108, 0.55);
+        border-color: rgba(255, 83, 108, 1);
+        color: #ffffff;
+      }
+
       .calendar-picker {
         border-radius: 16px;
         border: 1px solid rgba(255, 255, 255, 0.08);
@@ -451,7 +510,6 @@
             />
           </div>
         </form>
-        <div class="edit-hint" id="edit-hint" aria-live="polite"></div>
         <div class="event-footer" id="event-footer" aria-live="polite"></div>
         <div class="mobile-toolbar" id="mobile-toolbar">
           <button type="button" data-shortcut="ls">ls</button>
@@ -470,7 +528,7 @@
     </div>
 
     <script>
-      const SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
+      const SCOPE = "https://www.googleapis.com/auth/calendar.events";
       const STORAGE_KEY = "amib_busy_tokens";
       const CLIENT_ID_KEY = "amib_busy_client_id";
       const CLIENT_SECRET_KEY = "amib_busy_client_secret";
@@ -482,7 +540,6 @@
         const promptLabel = document.getElementById("prompt-label");
         const form = document.getElementById("terminal-form");
         const input = document.getElementById("command-input");
-        const editHint = document.getElementById("edit-hint");
         const eventFooter = document.getElementById("event-footer");
       const defaultPlaceholder = input.placeholder;
       const terminalInputWrapper = document.querySelector(".terminal-input");
@@ -508,7 +565,26 @@
         status: showStatus,
         help: showHelp,
         upgrade: handleUpgrade,
+        respond: handleRespondCommand,
       };
+      const RESPONSE_OPTIONS = [
+        { status: "accepted", label: "Yes", variant: "yes" },
+        { status: "declined", label: "No", variant: "no" },
+      ];
+      const RESPONSE_SHORTCUTS = {
+        yes: "accepted",
+        no: "declined",
+      };
+      function getResponseLabel(status) {
+        const match = RESPONSE_OPTIONS.find((option) => option.status === status);
+        return match ? match.label : status;
+      }
+      function getResponseOption(status) {
+        if (!status) {
+          return null;
+        }
+        return RESPONSE_OPTIONS.find((option) => option.status === status) || null;
+      }
       let awaitingClientId = false;
       let awaitingClientSecret = false;
       const commandHistory = [];
@@ -606,9 +682,10 @@
         }
         cancelAddEvent();
         const [name] = raw.split(" ", 1);
+        const args = raw.slice(name.length).trim();
         const command = commands[name];
         if (command) {
-          command();
+          command(args);
           return;
         }
         if (/^[0-9]+$/.test(raw)) {
@@ -800,12 +877,12 @@
         if (index >= 0 && index < cards.length) {
           navIndex = index;
           cards[index].scrollIntoView({ block: "center", behavior: "smooth" });
-          selectedEvent = lastRenderedEvents[index] || null;
-        } else {
-          navIndex = -1;
-          selectedEvent = null;
-        }
-        updateEditHint();
+        selectedEvent = lastRenderedEvents[index] || null;
+      } else {
+        navIndex = -1;
+        selectedEvent = null;
+      }
+        updateEventFooter();
       }
 
       function toggleEventDescription(index) {
@@ -930,27 +1007,6 @@
         input.focus();
       }
 
-      function updateEditHint() {
-        if (!selectedEvent) {
-          editHint.style.display = "none";
-          updateEventFooter();
-          return;
-        }
-        editHint.textContent = `Ready to edit event ${selectedEvent.id || "(unknown id)"}`;
-        editHint.style.display = "block";
-        updateEventFooter();
-      }
-
-      function getCurrentSelectedEvent() {
-        if (selectedEvent) {
-          return selectedEvent;
-        }
-        if (navIndex >= 0 && lastRenderedEvents[navIndex]) {
-          return lastRenderedEvents[navIndex];
-        }
-        return null;
-      }
-
       function updateEventFooter() {
         if (!eventFooter) {
           return;
@@ -970,7 +1026,17 @@
               minute: eventInfo.start?.dateTime ? "2-digit" : undefined,
             })
           : "";
-        eventFooter.textContent = `${eventInfo.summary || "Untitled"}${timeText ? ` · ${timeText}` : ""}`;
+        const summaryText = escapeHtml(eventInfo.summary || "Untitled");
+        let footerHtml = `${summaryText}${timeText ? ` · ${timeText}` : ""}`;
+        const attendee = getSelfAttendee(eventInfo);
+        if (attendee) {
+          const option = getResponseOption(attendee.responseStatus);
+          const variantClass = option?.variant || "yes";
+          footerHtml += ` · <span class="response-pill response-pill--${variantClass} response-pill--active">${getResponseLabel(
+            attendee.responseStatus
+          )}</span>`;
+        }
+        eventFooter.innerHTML = footerHtml;
       }
 
       function startAddShortcut() {
@@ -1241,9 +1307,11 @@
           "<strong>e</strong> + date/time/duration/title – edit the highlighted event with the new values",
           "<strong>a</strong> + date/time/duration + title – add a quick event (e.g., `a 271225 Christmas`, `a 07 14 1 Coffee`)",
           "<strong>upgrade</strong> – refresh the app to / to pull the latest PWA revision",
+          "<strong>respond</strong> yes|no – accept or decline the highlighted invite (also tap the Yes/No pills on each invite)",
           "<strong>clear</strong> – wipe the current console output",
           "Register a Google OAuth client that allows both http://localhost and https://cal-term.com as redirect URIs.",
-          "Tip: prompt lines show the date/time you sent a command, so you can correlate events with the shell history."
+          "Tip: prompt lines show the date/time you sent a command, so you can correlate events with the shell history.",
+          "This experience now uses the calendar.events scope so it can RSVP on your behalf."
         ];
         helpLines.forEach((line) => addHistoryLine("system", line));
       }
@@ -1433,6 +1501,20 @@
         }
       }
 
+      function handleRespondCommand(payload) {
+        const normalized = payload.trim().toLowerCase();
+        if (!normalized) {
+          addHistoryLine("error", "Usage: respond yes|no");
+          return;
+        }
+        const mapped = RESPONSE_SHORTCUTS[normalized] || normalized;
+        if (!["accepted", "declined"].includes(mapped)) {
+          addHistoryLine("error", "Respond with either 'yes' or 'no'.");
+          return;
+        }
+        respondToInvite(mapped);
+      }
+
       function handleUpgrade() {
         const randomToken = Math.floor(Math.random() * 1_000_000_000);
         addHistoryLine("log", "Upgrading app and refreshing with new version token...");
@@ -1582,6 +1664,13 @@
         return null;
       }
 
+      function getSelfAttendee(event) {
+        if (!event?.attendees) {
+          return null;
+        }
+        return event.attendees.find((attendee) => attendee.self) || null;
+      }
+
       function getCurrentSelectedEvent() {
         if (selectedEvent) {
           return selectedEvent;
@@ -1670,6 +1759,66 @@
           );
         } catch (error) {
           addHistoryLine("error", `Failed to edit event: ${error.message}`);
+        }
+      }
+
+      async function respondToInvite(status, targetEvent = null) {
+        const eventToUse = targetEvent || getCurrentSelectedEvent();
+        if (!eventToUse || !eventToUse.id) {
+          addHistoryLine("error", "Select an invite before responding.");
+          return;
+        }
+        const attendee = getSelfAttendee(eventToUse);
+        if (!attendee) {
+          addHistoryLine("error", "You are not listed as an attendee for this event.");
+          return;
+        }
+        if (attendee.responseStatus === status) {
+          addHistoryLine("log", `Already responded ${getResponseLabel(status)} to this invite.`);
+          return;
+        }
+        const attendeePatch = {
+          responseStatus: status,
+          self: true,
+        };
+        if (attendee.email) {
+          attendeePatch.email = attendee.email;
+        }
+        if (attendee.id) {
+          attendeePatch.id = attendee.id;
+        }
+        try {
+          const token = await ensureAccessToken();
+          const params = new URLSearchParams({ sendUpdates: "all" });
+          const calendarId = eventToUse.calendarId || "primary";
+          const response = await fetch(
+            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(
+              eventToUse.id
+            )}?${params.toString()}`,
+            {
+              method: "PATCH",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ attendees: [attendeePatch] }),
+            }
+          );
+          if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            const description = data.error?.message ? ` ${data.error.message}` : "";
+            throw new Error(`HTTP ${response.status}${description}`.trim());
+          }
+          addHistoryLine(
+            "system",
+            `${getResponseLabel(status)} sent for ${escapeHtml(eventToUse.summary || "this event")}.`
+          );
+          pendingRestoreEventId = eventToUse.id;
+          const start = getEventDateTime(eventToUse, "start") || new Date();
+          pendingFocusHistory += 1;
+          fetchEventsRange(`Responded ${getResponseLabel(status)}`, rangeSingleDay(start));
+        } catch (error) {
+          addHistoryLine("error", `Failed to respond: ${error.message}`);
         }
       }
 
@@ -1852,8 +2001,8 @@
         const sorted = [...events].sort((a, b) => new Date(getEventTime(a)).valueOf() - new Date(getEventTime(b)).valueOf());
         lastRenderedEvents = sorted;
         let currentDay = "";
-        sorted.forEach((event) => {
-          const startStamp = new Date(getEventTime(event));
+        sorted.forEach((calendarEvent) => {
+          const startStamp = new Date(getEventTime(calendarEvent));
           const dayKey = startStamp.toDateString();
           if (dayKey !== currentDay) {
             currentDay = dayKey;
@@ -1868,29 +2017,45 @@
           }
           const card = document.createElement("div");
           card.className = "event-card";
-          if (event.id) {
-            card.dataset.eventId = event.id;
+          if (calendarEvent.id) {
+            card.dataset.eventId = calendarEvent.id;
           }
-          const tintClass = getCalendarTintClass(event.calendarId || event.calendarName);
+          const tintClass = getCalendarTintClass(calendarEvent.calendarId || calendarEvent.calendarName);
           if (tintClass) {
             card.classList.add(tintClass);
           }
           card.addEventListener("click", () => {
-          const cards = getEventCards();
-          const index = cards.indexOf(card);
-          toggleEventDescription(index);
-        });
-          const start = event.start?.dateTime || event.start?.date;
-          const end = event.end?.dateTime || event.end?.date;
-          const calendarTag = event.calendarName
-            ? `<div class="pill">${escapeHtml(event.calendarName)}</div>`
+            const cards = getEventCards();
+            const index = cards.indexOf(card);
+            toggleEventDescription(index);
+          });
+          const start = calendarEvent.start?.dateTime || calendarEvent.start?.date;
+          const end = calendarEvent.end?.dateTime || calendarEvent.end?.date;
+          const calendarTag = calendarEvent.calendarName
+            ? `<div class="pill">${escapeHtml(calendarEvent.calendarName)}</div>`
+            : "";
+          const selfAttendee = getSelfAttendee(calendarEvent);
+          const responseMarkup = selfAttendee
+            ? `<div class="response-actions">${RESPONSE_OPTIONS.map((option) => {
+                const activeClass = option.status === selfAttendee.responseStatus ? " response-pill--active" : "";
+                return `<button type="button" class="response-pill response-pill--${option.variant}${activeClass}" data-response-status="${option.status}">${option.label}</button>`;
+              }).join("")}</div>`
             : "";
           card.innerHTML = `
             ${calendarTag}
-            <div class="event-title">${escapeHtml(event.summary || "(No title)")}</div>
+            <div class="event-title">${escapeHtml(calendarEvent.summary || "(No title)")}</div>
             <div class="event-time">${formatEventTime(start, end)}</div>
-            ${event.description ? `<div class="event-desc">${escapeHtml(event.description)}</div>` : ""}
+            ${responseMarkup}
+            ${calendarEvent.description ? `<div class="event-desc">${escapeHtml(calendarEvent.description)}</div>` : ""}
           `;
+          if (selfAttendee) {
+            card.querySelectorAll("[data-response-status]").forEach((button) => {
+              button.addEventListener("click", (event) => {
+                event.stopPropagation();
+                respondToInvite(button.dataset.responseStatus, calendarEvent);
+              });
+            });
+          }
           historyEl.appendChild(card);
         });
         historyEl.scrollTop = historyEl.scrollHeight;
