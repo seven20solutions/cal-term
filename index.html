@@ -2,8 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
     <title>Am I Busy</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#ff6acc" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
     <link
       rel="preconnect"
       href="https://fonts.googleapis.com"
@@ -168,11 +174,14 @@
           background: rgba(255, 255, 255, 0.08);
           color: var(--gum-white);
           font-family: inherit;
-          font-size: 0.85rem;
-          padding: 0.35rem 0.7rem;
+          font-size: 0.95rem;
+          padding: 0.6rem 1rem;
           border-radius: 999px;
           cursor: pointer;
           transition: background 0.2s ease;
+          min-width: 54px;
+          flex: 0 0 auto;
+          text-align: center;
         }
 
         .mobile-toolbar button:hover {
@@ -182,9 +191,16 @@
         @media (max-width: 640px) {
           .mobile-toolbar {
             display: flex;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
           }
           .terminal-input {
             padding-bottom: 1.8rem;
+            transition: transform 0.25s ease;
+          }
+          .terminal-input.focused {
+            transform: translateY(-90px);
           }
         }
 
@@ -312,7 +328,7 @@
           </div>
         </form>
         <div class="mobile-toolbar" id="mobile-toolbar">
-          <button type="button" data-shortcut="1">1</button>
+          <button type="button" data-shortcut="ls">ls</button>
           <button type="button" data-shortcut="7">7</button>
           <button type="button" data-shortcut="30">30</button>
           <button type="button" data-shortcut="j">j</button>
@@ -339,6 +355,7 @@
       const form = document.getElementById("terminal-form");
       const input = document.getElementById("command-input");
       const defaultPlaceholder = input.placeholder;
+      const terminalInputWrapper = document.querySelector(".terminal-input");
 
       const commands = {
         auth: handleAuth,
@@ -358,10 +375,16 @@
       let historyIndex = -1;
 
       updatePrompt();
-      addHistoryLine("system", `Welcome to Am I Busy. Type <span class='tag'>auth</span> to begin.`);
-      addHistoryLine("system", "Available commands: auth, ls, 7, 30, +1, +2, amibusy YYMMDD, cals, help.");
       handleOAuthCallback();
-      input.focus();
+      renderStartupMessage();
+      const ensureFocus = () => {
+        input.focus();
+        setTimeout(() => input.focus(), 50);
+        handleShortcut("ESC");
+      };
+      ensureFocus();
+      window.addEventListener("load", ensureFocus);
+      window.addEventListener("resize", updatePrompt);
 
       form.addEventListener("submit", (event) => {
         event.preventDefault();
@@ -380,6 +403,15 @@
           return;
         }
         executeCommand(trimmed);
+      });
+
+      input.addEventListener("focus", () => {
+        terminalInputWrapper.classList.add("focused");
+        selectHistoryCard(-1);
+      });
+
+      input.addEventListener("blur", () => {
+        terminalInputWrapper.classList.remove("focused");
       });
 
       input.addEventListener("keydown", (event) => {
@@ -539,13 +571,16 @@
           return;
         }
         event.preventDefault();
+        if (["j", "k"].includes(event.key) && navIndex === -1) {
+          navIndex = cards.length - 1;
+        }
         if (event.key === "j") {
-          navIndex = Math.min(cards.length - 1, navIndex + 1);
+          navIndex = Math.max(0, navIndex - 1);
           selectHistoryCard(navIndex);
           return;
         }
         if (event.key === "k") {
-          navIndex = Math.max(0, navIndex - 1);
+          navIndex = Math.min(cards.length - 1, navIndex + 1);
           selectHistoryCard(navIndex);
           return;
         }
@@ -602,9 +637,9 @@
           navIndex = cards.length - 1;
         }
         if (direction === "down") {
-          navIndex = Math.min(cards.length - 1, navIndex + 1);
-        } else {
           navIndex = Math.max(0, navIndex - 1);
+        } else {
+          navIndex = Math.min(cards.length - 1, navIndex + 1);
         }
         selectHistoryCard(navIndex);
       }
@@ -641,7 +676,7 @@
       });
 
       function handleShortcut(action) {
-        if (["1", "7", "30"].includes(action)) {
+        if (action === "ls" || ["7", "30"].includes(action)) {
           executeCommand(action);
           return;
         }
@@ -675,6 +710,15 @@
 
       function updatePrompt() {
         const now = new Date();
+        const isMobile = window.innerWidth <= 640;
+        if (isMobile) {
+          const day = now.toLocaleString(undefined, { day: "2-digit" });
+          const month = now
+            .toLocaleString(undefined, { month: "short" })
+            .toUpperCase();
+          promptLabel.textContent = `${day}-${month}`;
+          return;
+        }
         const formatted = now.toLocaleString(undefined, {
           year: "numeric",
           month: "2-digit",
@@ -799,6 +843,7 @@
         exchangeCodeForToken(code, verifier)
           .then(() => {
             addHistoryLine("log", "Authentication complete. You can now use other commands.");
+            renderStartupMessage();
           })
           .catch((err) => {
             addHistoryLine("error", `Token exchange failed: ${err.message}`);
@@ -904,6 +949,7 @@
           "<strong>amibusy YYMMDD</strong> – inspect a single day",
           "<strong>cals</strong> – list the calendars the token can read",
           "<strong>clear</strong> – wipe the current console output",
+          "Register a Google OAuth client that allows both http://localhost and https://cal-term.com as redirect URIs.",
           "Tip: prompt lines show the date/time you sent a command, so you can correlate events with the shell history."
         ];
         helpLines.forEach((line) => addHistoryLine("system", line));
@@ -927,6 +973,19 @@
         pieces.push(hasId ? "Client ID saved" : "Client ID missing");
         pieces.push(hasSecret ? "Client secret saved" : "Client secret missing");
         addHistoryLine("system", `Unauthenticated (${pieces.join(", ")}).`);
+      }
+
+      function hasValidToken() {
+        const stored = getStoredTokens();
+        return !!(stored && stored.access_token && stored.expires_at > Date.now());
+      }
+
+      function renderStartupMessage() {
+        if (hasValidToken()) {
+        addHistoryLine("system", "Type <span class='tag'>help</span> for assistance.");
+        return;
+      }
+        addHistoryLine("system", "Type <span class='tag'>auth</span> to begin.");
       }
 
       async function refreshAccessToken(refreshToken) {
@@ -1166,7 +1225,13 @@
           .replace(/\//g, "_")
           .replace(/=+$/, "");
       }
-      addHistoryLine("log", "Hint: After running <code>auth</code>, Google will redirect back to this page with the code.");
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker
+            .register("/sw.js")
+            .catch((error) => console.warn("Service worker registration failed", error));
+        });
+      }
     </script>
   </body>
 </html>
