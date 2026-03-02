@@ -500,6 +500,7 @@
         clear: clearHistory,
         status: showStatus,
         help: showHelp,
+        upgrade: handleUpgrade,
       };
       let awaitingClientId = false;
       let awaitingClientSecret = false;
@@ -1232,6 +1233,7 @@
           "<strong>cals</strong> – list the calendars the token can read",
           "<strong>e</strong> + date/time/duration/title – edit the highlighted event with the new values",
           "<strong>a</strong> + date/time/duration + title – add a quick event (e.g., `a 271225 Christmas`, `a 07 14 1 Coffee`)",
+          "<strong>upgrade</strong> – refresh the app to / to pull the latest PWA revision",
           "<strong>clear</strong> – wipe the current console output",
           "Register a Google OAuth client that allows both http://localhost and https://cal-term.com as redirect URIs.",
           "Tip: prompt lines show the date/time you sent a command, so you can correlate events with the shell history."
@@ -1422,6 +1424,12 @@
           addHistoryLine("error", `Unable to prepare event: ${error.message}`);
           pendingEvent = null;
         }
+      }
+
+      function handleUpgrade() {
+        const randomToken = Math.floor(Math.random() * 1_000_000_000);
+        addHistoryLine("log", "Upgrading app and refreshing with new version token...");
+        window.location.href = `/?v=${randomToken}`;
       }
 
       function renderCalendarPicker(calendars) {
