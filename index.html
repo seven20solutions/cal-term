@@ -564,15 +564,26 @@
         },
         m: () => {
           pendingFocusHistory += 1;
-          preferFocusTop = true;
+          // Focus today's date within the rendered month view (first event on/after today)
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          preferFocusDate = today;
           return fetchEventsRange("This Month", rangeMonth(0));
         },
         "+1": () => {
-          preferFocusTop = true;
+          // Prefer the first day of next month
+          pendingFocusHistory += 1;
+          const { start } = rangeMonth(1);
+          start.setHours(0, 0, 0, 0);
+          preferFocusDate = start;
           return fetchEventsRange("Next Month", rangeMonth(1));
         },
         "+2": () => {
-          preferFocusTop = true;
+          // Prefer the first day of the following month
+          pendingFocusHistory += 1;
+          const { start } = rangeMonth(2);
+          start.setHours(0, 0, 0, 0);
+          preferFocusDate = start;
           return fetchEventsRange("Following Month", rangeMonth(2));
         },
         cals: listCalendars,
@@ -611,6 +622,8 @@
       let pendingRestoreEventId = null;
       let pendingFocusHistory = 0;
       let preferFocusTop = false;
+      // When set to a Date (midnight), prefer focusing the first event on/after that date
+      let preferFocusDate = null;
       const calendarTintMap = new Map();
       const tintCount = 10;
 
@@ -2091,7 +2104,25 @@
         historyEl.scrollTop = historyEl.scrollHeight;
         if (pendingFocusHistory > 0) {
           pendingFocusHistory -= 1;
-          if (preferFocusTop) {
+          // If a specific date was requested (month view), prefer the first event on/after that date.
+          if (preferFocusDate) {
+            const targetStart = new Date(preferFocusDate).getTime(); // midnight of that day
+            // Find first event whose start is on or after targetStart
+            const index = lastRenderedEvents.findIndex((ev) => {
+              const evTime = new Date(getEventTime(ev)).getTime();
+              return evTime >= targetStart;
+            });
+            preferFocusDate = null;
+            if (index >= 0) {
+              navIndex = index;
+              selectHistoryCard(navIndex);
+            } else if (preferFocusTop) {
+              preferFocusTop = false;
+              jumpTop();
+            } else {
+              focusHistory();
+            }
+          } else if (preferFocusTop) {
             preferFocusTop = false;
             jumpTop();
           } else {
