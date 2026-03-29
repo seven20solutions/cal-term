@@ -513,6 +513,7 @@
         <div class="event-footer" id="event-footer" aria-live="polite"></div>
         <div class="mobile-toolbar" id="mobile-toolbar">
           <button type="button" data-shortcut="ls">ls</button>
+          <button type="button" data-shortcut="t">t</button>
           <button type="button" data-shortcut="w">w</button>
           <button type="button" data-shortcut="m">m</button>
           <button type="button" data-shortcut="j">j</button>
@@ -550,16 +551,30 @@
           pendingFocusHistory += 1;
           return fetchEventsRange("Today", rangeToday());
         },
+        t: () => {
+          pendingFocusHistory += 1;
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          return fetchEventsRange("Tomorrow", rangeSingleDay(tomorrow));
+        },
         w: () => {
           pendingFocusHistory += 1;
+          preferFocusTop = true;
           return fetchEventsRange("Next 7 Days", rangeNextDays(7));
         },
         m: () => {
           pendingFocusHistory += 1;
+          preferFocusTop = true;
           return fetchEventsRange("This Month", rangeMonth(0));
         },
-        "+1": () => fetchEventsRange("Next Month", rangeMonth(1)),
-        "+2": () => fetchEventsRange("Following Month", rangeMonth(2)),
+        "+1": () => {
+          preferFocusTop = true;
+          return fetchEventsRange("Next Month", rangeMonth(1));
+        },
+        "+2": () => {
+          preferFocusTop = true;
+          return fetchEventsRange("Following Month", rangeMonth(2));
+        },
         cals: listCalendars,
         clear: clearHistory,
         status: showStatus,
@@ -595,12 +610,15 @@
       let selectedEvent = null;
       let pendingRestoreEventId = null;
       let pendingFocusHistory = 0;
+      let preferFocusTop = false;
       const calendarTintMap = new Map();
       const tintCount = 10;
 
       updatePrompt();
       handleOAuthCallback();
       renderStartupMessage();
+      // Auto-run `ls` on startup to show today's schedule immediately
+      executeCommand('ls');
       const ensureFocus = () => {
         input.focus();
         setTimeout(() => input.focus(), 50);
@@ -730,6 +748,16 @@
       }
 
       function addHistoryLine(type, content) {
+        // If this is a query log (e.g. "Querying ... across all calendars…"),
+        // remove previous query log lines so only the most recent appears.
+        if (type === "log" && typeof content === "string" && content.trim().startsWith("Querying ")) {
+          Array.from(historyEl.querySelectorAll('.terminal-line--log')).forEach((old) => {
+            if (old.textContent && old.textContent.trim().startsWith('Querying ')) {
+              old.remove();
+            }
+          });
+        }
+
         const el = document.createElement("div");
         el.className = `terminal-line terminal-line--${type}`;
         el.innerHTML = content;
@@ -738,6 +766,8 @@
       }
 
       function addHistoryPrompt(command) {
+        // Keep only the most recent prompt visible: remove prior prompt-lines
+        Array.from(historyEl.querySelectorAll('.prompt-line')).forEach((old) => old.remove());
         const el = document.createElement("div");
         el.className = "prompt-line";
         el.innerHTML = `<strong>${promptLabel.textContent}</strong> ${escapeHtml(command)}`;
@@ -965,7 +995,7 @@
       });
 
       function handleShortcut(action) {
-        if (action === "ls" || ["w", "m"].includes(action)) {
+        if (action === "ls" || ["t", "w", "m"].includes(action)) {
           executeCommand(action);
           return;
         }
@@ -2061,7 +2091,12 @@
         historyEl.scrollTop = historyEl.scrollHeight;
         if (pendingFocusHistory > 0) {
           pendingFocusHistory -= 1;
-          focusHistory();
+          if (preferFocusTop) {
+            preferFocusTop = false;
+            jumpTop();
+          } else {
+            focusHistory();
+          }
         }
         restoreSelectionIfNeeded();
         updateEventFooter();
