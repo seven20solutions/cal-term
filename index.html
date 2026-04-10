@@ -1652,7 +1652,14 @@
       }
 
       function formatIsoDay(date) {
-        return date.toISOString().slice(0, 10);
+        // Use the local date components so the ISO day doesn't shift across timezones.
+        // toISOString() converts to UTC which can move the calendar date for
+        // users in positive offsets (e.g. UTC+10). For all-day events we want
+        // the local Y-M-D value.
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, "0");
+        const d = String(date.getDate()).padStart(2, "0");
+        return `${y}-${m}-${d}`;
       }
 
       function handleEditCommand(payload) {
@@ -1702,7 +1709,14 @@
           return new Date(value.dateTime);
         }
         if (value.date) {
-          return new Date(`${value.date}T00:00:00`);
+          // value.date is a YYYY-MM-DD string representing an all-day event.
+          // Construct a Date at local midnight to avoid timezone shifts when
+          // displaying or manipulating all-day events.
+          const parts = value.date.split("-").map((p) => parseInt(p, 10));
+          if (parts.length === 3) {
+            return new Date(parts[0], parts[1] - 1, parts[2]);
+          }
+          return null;
         }
         return null;
       }
