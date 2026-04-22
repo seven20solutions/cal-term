@@ -1346,6 +1346,7 @@
           "<strong>status</strong> – display whether the shell is authenticated",
           "<strong>ls</strong>/<strong>w</strong>/<strong>m</strong>/<strong>+1</strong>/<strong>+2</strong> – query events across every calendar for the requested range",
           "<strong>DD</strong>/<strong>MMDD</strong>/<strong>YYMMDD</strong>/<strong>YYYYMMDD</strong> – inspect an arbitrary day",
+          "<strong>DD+N</strong>/<strong>MMDD+N</strong>/<strong>DD-N</strong> – optional +N and -N modifiers expand the inspected range (e.g. 0222+2 shows 0222–0224, 0222-2 shows 0220–0222).",
           "<strong>cals</strong> – list the calendars the token can read",
           "<strong>e</strong> + date/time/duration/title – edit the highlighted event with the new values",
           "<strong>a</strong> + date/time/duration + title – add a quick event (e.g., `a 271225 Christmas`, `a 07 14 1 Coffee`)",
@@ -1467,13 +1468,64 @@
       }
 
       function handleDateLookup(raw) {
-        const candidate = parseFlexibleDate(raw);
-        if (!candidate) {
-          addHistoryLine("error", "Supply DD, MMDD, YYMMDD, or YYYYMMDD to inspect a day.");
+        // Support modifiers like 0222+2, 0222-2, or combined 0222-2+2
+        // Regex: capture leading digits as the date token, then any number of +N or -N modifiers
+        const m = String(raw).trim().match(/^([0-9]+)((?:[+-][0-9]+)*)$/);
+        if (!m) {
+          addHistoryLine("error", "Supply DD, MMDD, YYMMDD, or YYYYMMDD and optional +N/-N modifiers to inspect a day range.");
           return;
         }
-        const label = `Am I busy ${candidate.toLocaleDateString(undefined, { month: "short", day: "2-digit", year: "numeric" })}`;
-        fetchEventsRange(label, rangeSingleDay(candidate));
+        const dateDigits = m[1];
+        const modifiers = m[2] || "";
+        const base = parseFlexibleDate(dateDigits);
+        if (!base) {
+          addHistoryLine("error", "Invalid date. Use DD, MMDD, YYMMDD, or YYYYMMDD.");
+          return;
+        }
+
+        // Parse modifiers: sum positives and negatives independently
+        let plusTotal = 0;
+        let minusTotal = 0;
+        if (modifiers) {
+          const parts = modifiers.match(/[+-][0-9]+/g) || [];
+          for (const part of parts) {
+            const sign = part[0];
+            const num = parseInt(part.slice(1), 10);
+            if (Number.isNaN(num) || num < 0) {
+              addHistoryLine("error", `Invalid modifier: ${part}`);
+              return;
+            }
+            if (sign === "+") plusTotal += num;
+            else minusTotal += num;
+          }
+        }
+
+        // Compute inclusive start and end days (local midnights)
+        const start = new Date(base);
+        start.setHours(0, 0, 0, 0);
+        start.setDate(start.getDate() - minusTotal);
+        const endInclusive = new Date(base);
+        endInclusive.setHours(0, 0, 0, 0);
+        endInclusive.setDate(endInclusive.getDate() + plusTotal);
+
+        // timeMax for fetchEventsRange should be exclusive: day after endInclusive
+        const timeMax = new Date(endInclusive);
+        timeMax.setDate(timeMax.getDate() + 1);
+
+        // Build human friendly label
+        let label;
+        if (plusTotal || minusTotal) {
+          const startText = start.toLocaleDateString(undefined, { month: "short", day: "2-digit", year: "numeric" });
+          const endText = endInclusive.toLocaleDateString(undefined, { month: "short", day: "2-digit", year: "numeric" });
+          label = `Am I busy ${startText}–${endText}`;
+        } else {
+          label = `Am I busy ${base.toLocaleDateString(undefined, { month: "short", day: "2-digit", year: "numeric" })}`;
+        }
+
+        // Ensure UI focuses results like other commands
+        pendingFocusHistory += 1;
+        // Fetch across the computed range
+        fetchEventsRange(label, { start, end: timeMax });
       }
 
       async function handleAddCommand(payload) {
