@@ -719,7 +719,8 @@
           command(args);
           return;
         }
-        if (/^[0-9]+$/.test(raw)) {
+        // Accept pure digits or digits followed by one or more +/- modifiers (eg. 0222, 0222+2, 0222-2+2)
+        if (/^[0-9]+(?:[+-][0-9]+)*$/.test(raw)) {
           handleDateLookup(raw);
           return;
         }
